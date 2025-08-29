@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Landing Page CRUD</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; line-height: 1.6; }
+
+    header {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      background: #333; color: #fff;
+      padding: 1rem;
+      text-align: center;
+      z-index: 1000;
+    }
+
+    .content { margin-top: 80px; padding: 1rem; }
+
+    .tarefas {
+      padding: 2rem;
+      background: #fafafa;
+      border-radius: 8px;
+    }
+
+    .tarefas h2 {
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    form input, form select {
+      padding: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    form button {
+      padding: 0.6rem;
+      background: #333; color: #fff;
+      border: none; border-radius: 6px;
+      cursor: pointer;
+    }
+
+    ul { list-style: none; padding: 0; }
+    li {
+      background: #eee;
+      margin: 0.5rem 0;
+      padding: 0.8rem;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .acoes button {
+      margin-left: 5px;
+      padding: 0.4rem 0.6rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .edit { background: #007bff; color: #fff; }
+    .delete { background: #dc3545; color: #fff; }
+    .save { background: #28a745; color: #fff; }
+    .cancel { background: #6c757d; color: #fff; }
+  </style>
+</head>
+<body>
+  <header>
+    <h2>📋 CRUD de Tarefas</h2>
+  </header>
+
+  <div class="content">
+    <section class="tarefas">
+      <h2>Gerenciar Tarefas</h2>
+
+      <!-- Formulário de criação -->
+      <form id="form-tarefa">
+        <input type="text" id="titulo" placeholder="Título" required>
+        <input type="text" id="descricao" placeholder="Descrição" required>
+        <select id="status">
+          <option value="pendente">Pendente</option>
+          <option value="concluída">Concluída</option>
+        </select>
+        <button type="submit">Adicionar Tarefa</button>
+      </form>
+
+      <!-- Lista de tarefas -->
+      <ul id="lista-tarefas">
+        <li>Carregando tarefas...</li>
+      </ul>
+    </section>
+  </div>
+
+  <script>
+    const API_URL = "/tarefas";
+    const lista = document.getElementById("lista-tarefas");
+    const form = document.getElementById("form-tarefa");
+
+    // ================== LISTAR ==================
+    async function carregarTarefas() {
+      try {
+        const response = await fetch(API_URL);
+        const tarefas = await response.json();
+        lista.innerHTML = "";
+
+        if (tarefas.length === 0) {
+          lista.innerHTML = "<li>Nenhuma tarefa encontrada.</li>";
+          return;
+        }
+
+        tarefas.forEach(t => {
+          const li = document.createElement("li");
+          li.innerHTML = `
+            <span>
+              <b>${t.titulo}</b> - ${t.descricao} 
+              [${t.status}]
+            </span>
+            <div class="acoes">
+              <button class="edit" onclick="editarTarefa(${t.id}, '${t.titulo}', '${t.descricao}', '${t.status}')">Editar</button>
+              <button class="delete" onclick="deletarTarefa(${t.id})">Excluir</button>
+            </div>
+          `;
+          lista.appendChild(li);
+        });
+      } catch (err) {
+        lista.innerHTML = "<li>Erro ao carregar tarefas.</li>";
+        console.error(err);
+      }
+    }
+
+    // ================== CRIAR ==================
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const novaTarefa = {
+        id: Date.now(), // gera ID único
+        titulo: document.getElementById("titulo").value,
+        descricao: document.getElementById("descricao").value,
+        status: document.getElementById("status").value,
+      };
+
+      await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(novaTarefa),
+      });
+
+      form.reset();
+      carregarTarefas();
+    });
+
+    // ================== EDITAR ==================
+    async function editarTarefa(id, titulo, descricao, status) {
+      const li = [...lista.children].find(el => el.innerHTML.includes(`${titulo}`));
+
+      li.innerHTML = `
+        <input id="edit-titulo" value="${titulo}">
+        <input id="edit-descricao" value="${descricao}">
+        <select id="edit-status">
+          <option value="pendente" ${status === "pendente" ? "selected" : ""}>Pendente</option>
+          <option value="concluída" ${status === "concluída" ? "selected" : ""}>Concluída</option>
+        </select>
+        <div class="acoes">
+          <button class="save" onclick="salvarEdicao(${id})">Salvar</button>
+          <button class="cancel" onclick="carregarTarefas()">Cancelar</button>
+        </div>
+      `;
+    }
+
+    async function salvarEdicao(id) {
+      const titulo = document.getElementById("edit-titulo").value;
+      const descricao = document.getElementById("edit-descricao").value;
+      const status = document.getElementById("edit-status").value;
+
+      await fetch(`${API_URL}/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ titulo, descricao, status }),
+      });
+
+      carregarTarefas();
+    }
+
+    // ================== DELETAR ==================
+    async function deletarTarefa(id) {
+      await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+      carregarTarefas();
+    }
+
+    // Carregar tarefas ao iniciar
+    window.onload = carregarTarefas;
+  </script>
+</body>
+</html>

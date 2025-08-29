@@ -1,0 +1,9 @@
+from fastapi import FastAPI
+
+# Criar a aplicação
+app = FastAPI(title="Minha API Exemplo", description="API com 1 endpoint e Swagger", version="1.0.0")
+
+# Criar 1 endpoint simples
+@app.get("/hello")
+def read_root():
+    return {"mensagem": "Olá, mundo!"}

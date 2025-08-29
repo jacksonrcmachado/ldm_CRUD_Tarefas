@@ -1,0 +1,11 @@
+# Criar um ambiente virtual
+python -m venv .venv
+
+# Ativar o ambiente virtual
+.venv\Scripts\activate
+
+# Desativar o ambiente virtual
+deactivate
+
+# como subir uma api Phyton
+uvicorn main:app --reload

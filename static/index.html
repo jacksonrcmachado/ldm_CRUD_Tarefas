@@ -1,91 +1,43 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Landing Page CRUD</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CRUD Tarefas + Auth</title>
   <style>
+    /* seu CSS (removi nada importante) */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: Arial, sans-serif; line-height: 1.6; }
+    header { position: fixed; top:0; left:0; width:100%; background:#333; color:#fff; padding:0.6rem; z-index:1000; display:flex; justify-content:space-between; align-items:center; }
+    .content { margin-top:70px; padding:1rem; }
+    .tarefas { padding:2rem; background:#fafafa; border-radius:8px; }
+    form { display:flex; flex-direction:column; gap:0.5rem; margin-bottom:1.5rem; }
+    input, select { padding:0.5rem; border:1px solid #ccc; border-radius:6px; }
+    button { padding:0.6rem; background:#333; color:#fff; border:none; border-radius:6px; cursor:pointer; }
+    ul { list-style:none; padding:0; }
+    li { background:#eee; margin:0.5rem 0; padding:0.8rem; border-radius:6px; display:flex; justify-content:space-between; align-items:center; }
+    .acoes button { margin-left:5px; padding:0.4rem 0.6rem; border:none; border-radius:4px; cursor:pointer; }
+    .edit { background:#007bff; color:#fff; } .delete { background:#dc3545; color:#fff; } .save { background:#28a745; color:#fff; } .cancel { background:#6c757d; color:#fff; }
 
-    header {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%;
-      background: #333; color: #fff;
-      padding: 1rem;
-      text-align: center;
-      z-index: 1000;
-    }
-
-    .content { margin-top: 80px; padding: 1rem; }
-
-    .tarefas {
-      padding: 2rem;
-      background: #fafafa;
-      border-radius: 8px;
-    }
-
-    .tarefas h2 {
-      margin-bottom: 1rem;
-      text-align: center;
-    }
-
-    form {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      margin-bottom: 1.5rem;
-    }
-
-    form input, form select {
-      padding: 0.5rem;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-    }
-
-    form button {
-      padding: 0.6rem;
-      background: #333; color: #fff;
-      border: none; border-radius: 6px;
-      cursor: pointer;
-    }
-
-    ul { list-style: none; padding: 0; }
-    li {
-      background: #eee;
-      margin: 0.5rem 0;
-      padding: 0.8rem;
-      border-radius: 6px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .acoes button {
-      margin-left: 5px;
-      padding: 0.4rem 0.6rem;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-
-    .edit { background: #007bff; color: #fff; }
-    .delete { background: #dc3545; color: #fff; }
-    .save { background: #28a745; color: #fff; }
-    .cancel { background: #6c757d; color: #fff; }
+    .auth { display:flex; gap:0.5rem; align-items:center; }
+    .auth input { width:120px; }
   </style>
 </head>
 <body>
   <header>
     <h2>📋 CRUD de Tarefas</h2>
+    <div class="auth" id="auth-area">
+      <!-- Formulário de login -->
+      <input id="username" placeholder="usuário">
+      <input id="password" type="password" placeholder="senha">
+      <button id="btn-login">Login</button>
+      <button id="btn-logout" style="display:none">Logout</button>
+    </div>
   </header>
 
   <div class="content">
     <section class="tarefas">
       <h2>Gerenciar Tarefas</h2>
-
-      <!-- Formulário de criação -->
       <form id="form-tarefa">
         <input type="text" id="titulo" placeholder="Título" required>
         <input type="text" id="descricao" placeholder="Descrição" required>
@@ -96,7 +48,6 @@
         <button type="submit">Adicionar Tarefa</button>
       </form>
 
-      <!-- Lista de tarefas -->
       <ul id="lista-tarefas">
         <li>Carregando tarefas...</li>
       </ul>
@@ -105,65 +56,83 @@
 
   <script>
     const API_URL = "/tarefas";
+    const LOGIN_URL = "/login";
+    const REGISTER_URL = "/register"; // opcional
     const lista = document.getElementById("lista-tarefas");
     const form = document.getElementById("form-tarefa");
 
-    // ================== LISTAR ==================
+    const btnLogin = document.getElementById("btn-login");
+    const btnLogout = document.getElementById("btn-logout");
+    const inputUser = document.getElementById("username");
+    const inputPass = document.getElementById("password");
+
+    function getAuthHeaders() {
+      const token = localStorage.getItem("access_token");
+      const h = { "Content-Type": "application/json" };
+      if (token) h["Authorization"] = "Bearer " + token;
+      return h;
+    }
+
     async function carregarTarefas() {
       try {
-        const response = await fetch(API_URL);
+        const response = await fetch(API_URL, { headers: getAuthHeaders() });
+        if (response.status === 401) {
+          lista.innerHTML = "<li>Você precisa fazer login para ver as tarefas.</li>";
+          toggleLogged(false);
+          return;
+        }
         const tarefas = await response.json();
+        toggleLogged(true);
         lista.innerHTML = "";
-
-        if (tarefas.length === 0) {
+        if (!Array.isArray(tarefas) || tarefas.length === 0) {
           lista.innerHTML = "<li>Nenhuma tarefa encontrada.</li>";
           return;
         }
-
         tarefas.forEach(t => {
           const li = document.createElement("li");
           li.innerHTML = `
             <span>
-              <b>${t.titulo}</b> - ${t.descricao} 
-              [${t.status}]
+              <b>${t.titulo}</b> - ${t.descricao} [${t.status}]
             </span>
             <div class="acoes">
-              <button class="edit" onclick="editarTarefa(${t.id}, '${t.titulo}', '${t.descricao}', '${t.status}')">Editar</button>
+              <button class="edit" onclick="editarTarefa(${t.id}, '${escapeHtml(t.titulo)}', '${escapeHtml(t.descricao)}', '${t.status}')">Editar</button>
               <button class="delete" onclick="deletarTarefa(${t.id})">Excluir</button>
             </div>
           `;
           lista.appendChild(li);
         });
       } catch (err) {
-        lista.innerHTML = "<li>Erro ao carregar tarefas.</li>";
         console.error(err);
+        lista.innerHTML = "<li>Erro ao carregar tarefas.</li>";
       }
     }
 
-    // ================== CRIAR ==================
+    // ESCAPE simples para evitar quebra de strings no onclick
+    function escapeHtml(str) {
+      return String(str).replace(/'/g, "\\'").replace(/"/g, '\\"');
+    }
+
+    // ======= CRIAR =======
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const novaTarefa = {
-        id: Date.now(), // gera ID único
         titulo: document.getElementById("titulo").value,
         descricao: document.getElementById("descricao").value,
         status: document.getElementById("status").value,
       };
-
       await fetch(API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify(novaTarefa),
       });
-
       form.reset();
       carregarTarefas();
     });
 
-    // ================== EDITAR ==================
+    // ======= EDITAR =======
     async function editarTarefa(id, titulo, descricao, status) {
-      const li = [...lista.children].find(el => el.innerHTML.includes(`${titulo}`));
-
+      const li = [...lista.children].find(el => el.innerHTML.includes(titulo));
+      if (!li) return;
       li.innerHTML = `
         <input id="edit-titulo" value="${titulo}">
         <input id="edit-descricao" value="${descricao}">
@@ -182,23 +151,73 @@
       const titulo = document.getElementById("edit-titulo").value;
       const descricao = document.getElementById("edit-descricao").value;
       const status = document.getElementById("edit-status").value;
-
       await fetch(`${API_URL}/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ titulo, descricao, status }),
       });
-
       carregarTarefas();
     }
 
-    // ================== DELETAR ==================
+    // ======= DELETAR =======
     async function deletarTarefa(id) {
-      await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+      await fetch(`${API_URL}/${id}`, { method: "DELETE", headers: getAuthHeaders() });
       carregarTarefas();
     }
 
-    // Carregar tarefas ao iniciar
+    // ======= LOGIN / LOGOUT =======
+    btnLogin.addEventListener("click", async () => {
+      const username = inputUser.value;
+      const password = inputPass.value;
+      if (!username || !password) {
+        alert("Preencha usuário e senha.");
+        return;
+      }
+      try {
+        const r = await fetch(LOGIN_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password })
+        });
+        if (r.status !== 200) {
+          const err = await r.json();
+          alert(err.msg || "Erro no login");
+          return;
+        }
+        const data = await r.json();
+        localStorage.setItem("access_token", data.access_token);
+        inputPass.value = "";
+        carregarTarefas();
+      } catch (e) {
+        console.error(e);
+        alert("Erro no login");
+      }
+    });
+
+    btnLogout.addEventListener("click", () => {
+      localStorage.removeItem("access_token");
+      toggleLogged(false);
+      lista.innerHTML = "<li>Você saiu. Faça login para ver as tarefas.</li>";
+    });
+
+    function toggleLogged(isLogged) {
+      if (isLogged) {
+        btnLogin.style.display = "none";
+        inputUser.style.display = "none";
+        inputPass.style.display = "none";
+        btnLogout.style.display = "inline-block";
+        form.style.display = "block";
+      } else {
+        btnLogin.style.display = "inline-block";
+        inputUser.style.display = "inline-block";
+        inputPass.style.display = "inline-block";
+        btnLogout.style.display = "none";
+        // opcional: esconder form de criar tarefa
+        // form.style.display = "none";
+      }
+    }
+
+    // Carrega ao iniciar
     window.onload = carregarTarefas;
   </script>
 </body>
